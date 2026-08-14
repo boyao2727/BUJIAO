@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>布蕉 — 生理-运动评估助手</title>
+<style>
+/* ============================================================
+   Design tokens
+   ============================================================ */
+:root {
+  --bg:       #f8f7f4;
+  --surface:  #ffffff;
+  --border:   #e5e2db;
+  --text:     #2c2c2c;
+  --text-sec: #6b6b6b;
+  --accent:   #4a8c6f;
+  --accent-light: #e8f5ee;
+  --warn:     #c4793a;
+  --warn-light: #fdf0e4;
+  --danger:   #c0392b;
+  --danger-light: #fdecea;
+  --blue:     #3a7bc4;
+  --blue-light: #e4f0fd;
+  --radius:   10px;
+  --shadow:   0 1px 3px rgba(0,0,0,.06);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+.container { max-width: 640px; margin: 0 auto; padding: 24px 16px 80px; }
+
+header { text-align: center; margin-bottom: 32px; }
+header h1 { font-size: 22px; font-weight: 700; letter-spacing: .5px; }
+header p  { font-size: 17px; color: var(--text-sec); margin-top: 4px; }
+header p.disclaimer {
+  font-size: 12px; line-height: 1.6; text-align: left;
+  margin-top: 8px; padding: 8px 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+.card-title {
+  font-size: 15px; font-weight: 600; margin-bottom: 14px;
+  display: flex; align-items: center; gap: 6px;
+}
+.card-title .icon { font-size: 17px; }
+
+.field { margin-bottom: 14px; }
+.field:last-child { margin-bottom: 0; }
+.field label {
+  display: block; font-size: 13px; font-weight: 500;
+  color: var(--text-sec); margin-bottom: 5px;
+}
+
+select, input[type="number"] {
+  width: 100%; padding: 8px 10px; font-size: 14px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--text);
+  outline: none; transition: border-color .15s;
+}
+select:focus, input:focus { border-color: var(--accent); }
+
+input[type="range"] {
+  width: 100%; padding: 0; border: none;
+  accent-color: var(--accent);
+}
+
+.range-row { display: flex; align-items: center; gap: 10px; }
+.range-row input { flex: 1; }
+.range-val { font-size: 14px; font-weight: 600; min-width: 28px; text-align: center; }
+
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+.toggle-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.toggle-row label { margin-bottom: 0; }
+.switch { position: relative; width: 38px; height: 22px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute; inset: 0; background: #ccc; border-radius: 22px;
+  cursor: pointer; transition: .2s;
+}
+.slider::before {
+  content: ''; position: absolute; height: 16px; width: 16px;
+  left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .2s;
+}
+.switch input:checked + .slider { background: var(--accent); }
+.switch input:checked + .slider::before { transform: translateX(16px); }
+
+/* Symptoms */
+.symptom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.symptom-chip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 13px; cursor: pointer; transition: .15s; user-select: none;
+}
+.symptom-chip.active { border-color: var(--accent); background: var(--accent-light); }
+.symptom-chip .check {
+  width: 16px; height: 16px; border-radius: 4px;
+  border: 1.5px solid #bbb; display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0; font-size: 11px; transition: .15s;
+}
+.symptom-chip.active .check { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.symptom-detail {
+  display: none; padding: 10px 12px; margin-top: 8px;
+  background: #fafaf8; border-radius: 6px; border: 1px solid var(--border);
+}
+.symptom-detail.show { display: block; }
+.symptom-detail .row-2 { margin-top: 6px; }
+.symptom-label { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+
+/* Button */
+.btn-primary {
+  display: block; width: 100%; padding: 12px;
+  font-size: 16px; font-weight: 600; color: #fff;
+  background: var(--accent); border: none; border-radius: 8px;
+  cursor: pointer; transition: .15s;
+}
+.btn-primary:hover { background: #3d7a5f; }
+.btn-primary:active { transform: scale(.98); }
+
+/* Results */
+.result-hero { text-align: center; padding: 24px 20px; }
+.result-hero .big-label { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+.result-hero .sub-label { font-size: 14px; color: var(--text-sec); }
+
+.result-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.result-row:last-child { border-bottom: none; }
+.result-row .r-label { font-size: 14px; color: var(--text-sec); }
+.result-row .r-value { font-size: 14px; font-weight: 600; }
+
+.score-bar {
+  width: 100%; height: 6px; background: #eee;
+  border-radius: 3px; margin-top: 6px; overflow: hidden;
+}
+.score-bar-fill { height: 100%; border-radius: 3px; transition: width .4s ease; }
+
+/* --- Result visualizations (animate once on first view) --- */
+.viz-wrap { display: flex; justify-content: center; margin: 12px 0 8px; }
+
+/* Battery (今日负荷适配) */
+.battery { display: flex; align-items: center; }
+.battery-body {
+  width: 116px; height: 48px; padding: 4px;
+  border: 3px solid #a9a79e; border-radius: 9px; background: #f3f2ee;
+}
+.battery-cap { width: 6px; height: 20px; background: #a9a79e; border-radius: 0 3px 3px 0; margin-left: 3px; }
+.battery-fill { height: 100%; width: 0; border-radius: 5px; transition: width 1.2s ease-out .15s; }
+.viz-wrap.animate .battery-fill { width: var(--target); }
+
+/* Ascending bars (训练适应倾向) */
+.viz-bars { display: flex; align-items: flex-end; gap: 7px; height: 62px; }
+.vbar {
+  width: 19px; border-radius: 4px 4px 2px 2px; background: #e7e5de;
+  transition: background-color .35s ease, box-shadow .35s ease;
+  transition-delay: var(--d, 0s);
+}
+.viz-wrap.animate .vbar.lit-green  { background: var(--accent); box-shadow: 0 0 6px rgba(74,140,111,.35); }
+.viz-wrap.animate .vbar.lit-orange { background: var(--warn);   box-shadow: 0 0 6px rgba(196,121,58,.35); }
+.viz-wrap.animate .vbar.lit-red    { background: var(--danger); box-shadow: 0 0 6px rgba(192,57,43,.35); }
+
+/* Score rings (各维度评分行右侧小圆圈) */
+.r-value-wrap { display: flex; align-items: center; gap: 8px; }
+.score-ring { transform: rotate(-90deg); flex-shrink: 0; }
+.ring-bg { fill: none; stroke: #e7e5de; stroke-width: 3; }
+.ring-fg {
+  fill: none; stroke-width: 3; stroke-linecap: round;
+  stroke-dasharray: 56.55; stroke-dashoffset: 56.55;
+  transition: stroke-dashoffset .9s ease-out;
+  transition-delay: var(--d, 0s);
+}
+#score-rows.animate .ring-fg { stroke-dashoffset: var(--rt); }
+.ring-green  { stroke: var(--accent); }
+.ring-orange { stroke: var(--warn); }
+.ring-red    { stroke: var(--danger); }
+
+.tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.tag-chip {
+  font-size: 12px; padding: 4px 10px;
+  background: var(--accent-light); color: var(--accent);
+  border-radius: 20px; font-weight: 500;
+}
+
+.tag-explain {
+  font-size: 13px; color: var(--text-sec); padding: 6px 0;
+  border-bottom: 1px solid var(--border); line-height: 1.5;
+}
+.tag-explain:last-child { border-bottom: none; }
+.tag-explain strong { color: var(--text); font-weight: 500; }
+
+.evidence-badge {
+  display: inline-block; font-size: 12px; padding: 3px 10px;
+  border-radius: 20px; font-weight: 500;
+}
+.evidence-research { background: var(--blue-light); color: var(--blue); }
+
+.gate-banner {
+  display: none; padding: 12px 14px;
+  background: var(--danger-light); border: 1px solid #e8c4c0;
+  border-radius: 8px; margin-bottom: 14px;
+  font-size: 13px; color: var(--danger); font-weight: 500;
+}
+.gate-banner.show { display: block; }
+
+.safety-note {
+  padding: 12px 14px; margin-bottom: 14px;
+  background: #fff7e8; border: 1px solid #ead3a8;
+  border-radius: 8px; color: #7a531b;
+  font-size: 12px; line-height: 1.65;
+}
+
+.axis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.axis-box { padding: 14px; background: #fafaf8; border-radius: 8px; }
+.axis-box .axis-label { font-size: 12px; color: var(--text-sec); margin-bottom: 4px; }
+.axis-box .axis-value { font-size: 22px; font-weight: 700; }
+
+.c-green  { color: var(--accent); }
+.c-orange { color: var(--warn); }
+.c-red    { color: var(--danger); }
+.c-blue   { color: var(--blue); }
+.bg-green  { background: var(--accent); }
+.bg-orange { background: var(--warn); }
+.bg-red    { background: var(--danger); }
+.bg-blue   { background: var(--blue); }
+
+.btn-back {
+  display: block; width: 100%; padding: 10px;
+  font-size: 14px; font-weight: 500;
+  background: transparent; border: 1px solid var(--border);
+  border-radius: 8px; cursor: pointer; margin-top: 12px;
+  color: var(--text-sec); transition: .15s;
+}
+.btn-back:hover { background: #f5f4f0; }
+
+@media (max-width: 400px) {
+  .symptom-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>布蕉</h1>
+    <p id="header-sub">生理-运动评估助手</p>
+  </header>
+
+  <!-- ======================================================
+       INPUT FORM
+       ====================================================== -->
+  <div id="form-section">
+
+    <div class="card">
+      <div class="card-title"><span class="icon">👤</span> 基础信息</div>
+      <div class="row-3">
+        <div class="field">
+          <label>生理性别</label>
+          <select id="sex">
+            <option value="男">男</option>
+            <option value="女">女</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>每周目标训练天数</label>
+          <select id="train_freq_baseline">
+            <option value="1">1 天</option>
+            <option value="2">2 天</option>
+            <option value="3" selected>3 天</option>
+            <option value="4">4 天</option>
+            <option value="5">5 天</option>
+            <option value="6">6 天</option>
+            <option value="7">7 天</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>目标</label>
+          <select id="goal">
+            <option value="增肌">增肌</option>
+            <option value="减脂">减脂</option>
+            <option value="维持">维持</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">💤</span> 睡眠（过去一周平均）</div>
+      <div class="field">
+        <label>日均睡眠时长</label>
+        <div class="range-row">
+          <input type="range" id="sleep_hours" min="3" max="10" step="0.5" value="7">
+          <span class="range-val" id="sleep_hours_val">7h</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>失眠或睡不好的频率</label>
+        <select id="sleep_quality">
+          <option value="没有">没有</option>
+          <option value="偶尔" selected>偶尔（1-2晚）</option>
+          <option value="时常">时常（3-4晚）</option>
+          <option value="总是">总是（几乎每晚）</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🥗</span> 营养（过去一周大致）</div>
+      <div class="row-3">
+        <div class="field">
+          <label>蛋白质</label>
+          <select id="protein">
+            <option value="偏少">偏少</option>
+            <option value="一般" selected>一般</option>
+            <option value="充足">充足</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>碳水</label>
+          <select id="carb">
+            <option value="偏少">偏少</option>
+            <option value="一般" selected>一般</option>
+            <option value="充足">充足</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>水分</label>
+          <select id="hydration">
+            <option value="不太够">不太够</option>
+            <option value="还行" selected>还行</option>
+            <option value="充足">充足</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🏋️</span> 训练（过去一周）</div>
+      <div class="row-2">
+        <div class="field">
+          <label>实际训练天数</label>
+          <select id="days_trained">
+            <option value="0">0 天</option>
+            <option value="1">1 天</option>
+            <option value="2">2 天</option>
+            <option value="3" selected>3 天</option>
+            <option value="4">4 天</option>
+            <option value="5">5 天</option>
+            <option value="6">6 天</option>
+            <option value="7">7 天</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>训练强度</label>
+          <select id="training_intensity">
+            <option value="轻松">轻松</option>
+            <option value="中等" selected>中等</option>
+            <option value="比较拼">比较拼</option>
+            <option value="非常拼">非常拼</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">😮‍💨</span> 疲劳与压力</div>
+      <div class="field">
+        <label>整体疲劳感（1=精力充沛，5=非常疲惫）</label>
+        <div class="range-row">
+          <input type="range" id="fatigue_raw" min="1" max="5" step="1" value="2">
+          <span class="range-val" id="fatigue_raw_val">2</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>压力水平</label>
+        <select id="stress">
+          <option value="低">低</option>
+          <option value="中等" selected>中等</option>
+          <option value="偏高">偏高</option>
+          <option value="很高">很高</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🤒</span> 今日状态</div>
+      <div class="toggle-row">
+        <label class="switch">
+          <input type="checkbox" id="today_discomfort">
+          <span class="slider"></span>
+        </label>
+        <label style="font-size:13px; color:var(--text-sec); cursor:pointer;" onclick="document.getElementById('today_discomfort').click()">今日感到不适/疲惫（不勾选默认没有不适）</label>
+      </div>
+      <div id="today-discomfort-detail" style="display:none;">
+        <div class="symptom-grid" id="today-symptom-grid"></div>
+        <div id="today-symptom-details"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🩺</span> 过去一周身体状况（可选，勾选存在的情况）</div>
+      <div class="symptom-grid" id="symptom-grid"></div>
+      <div id="symptom-details-container"></div>
+    </div>
+
+    <div class="card" id="menstrual-card" style="display:none;">
+      <div class="card-title"><span class="icon">🌙</span> 经期</div>
+      <div class="field">
+        <label>当前经期状态</label>
+        <select id="menstrual_phase">
+          <option value="非经期">非经期</option>
+          <option value="经期中">经期中</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🔍</span> 可选信息</div>
+      <div class="field">
+        <label>镜子里的变化</label>
+        <select id="visual">
+          <option value="没注意" selected>没注意</option>
+          <option value="没变化">没变化</option>
+          <option value="更扁了">感觉更扁了</option>
+          <option value="更饱满">感觉更饱满</option>
+        </select>
+      </div>
+      <div class="toggle-row">
+        <label class="switch">
+          <input type="checkbox" id="has_session">
+          <span class="slider"></span>
+        </label>
+        <label style="font-size:13px; color:var(--text-sec); cursor:pointer;" onclick="document.getElementById('has_session').click()">今天练了，想评估这次训练</label>
+      </div>
+      <div class="field" id="session-field" style="display:none;">
+        <label>今日训练主观感受（1=很轻松，10=力竭）</label>
+        <div class="range-row">
+          <input type="range" id="session_effort" min="1" max="10" step="1" value="6">
+          <span class="range-val" id="session_effort_val">6</span>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-primary" onclick="runEngine()">评估我的状态</button>
+  </div>
+
+  <!-- ======================================================
+       RESULTS (hidden by default via inline style)
+       ====================================================== -->
+  <div id="results" style="display:none;">
+    <div id="gate-banner" class="gate-banner"></div>
+    <div class="safety-note"><strong>安全提示：</strong>如有胸痛/压迫感、明显呼吸困难、晕厥或接近晕厥、新发神经症状、异常心律感、急性外伤或剧烈加重疼痛，请停止运动并寻求专业评估，不要依赖本评分。</div>
+
+    <div class="card" id="result-load">
+      <div class="card-title"><span class="icon">⚡</span> 今日运动准备度</div>
+      <div class="result-hero">
+        <div class="big-label" id="load-label"></div>
+        <div class="viz-wrap" id="load-viz"></div>
+        <div class="sub-label" id="load-desc" style="margin-bottom:4px;"></div>
+        <div class="sub-label" id="load-score" style="font-size:12px;"></div>
+      </div>
+    </div>
+
+    <div class="card" id="result-phase">
+      <div class="card-title"><span class="icon">📈</span> 近期训练适应倾向</div>
+      <div class="result-hero">
+        <div class="big-label" id="phase-label"></div>
+        <div class="viz-wrap" id="phase-viz"></div>
+        <div class="sub-label" id="phase-desc" style="margin-bottom:4px;"></div>
+        <div class="sub-label" id="phase-score" style="font-size:12px;"></div>
+      </div>
+    </div>
+
+    <div class="card" id="result-axes">
+      <div class="card-title"><span class="icon">⚖️</span> 刺激与恢复支持</div>
+      <div class="axis-grid">
+        <div class="axis-box">
+          <div class="axis-label">训练刺激</div>
+          <div class="axis-value" id="stimulus-score"></div>
+        </div>
+        <div class="axis-box">
+          <div class="axis-label">周恢复支持</div>
+          <div class="axis-value" id="recovery-score"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="result-session" style="display:none;">
+      <div class="card-title"><span class="icon">💪</span> 本次训练输入类型</div>
+      <div class="result-hero">
+        <div class="big-label" id="session-label"></div>
+        <div class="sub-label" id="session-score"></div>
+      </div>
+      <div class="score-bar"><div class="score-bar-fill" id="session-bar"></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">📊</span> 各维度评分</div>
+      <div id="score-rows"></div>
+    </div>
+
+    <div class="card" id="result-why">
+      <div class="card-title"><span class="icon">💡</span> 为什么会这样</div>
+      <div class="tag-list" id="tag-chips"></div>
+      <div id="tag-explains"></div>
+    </div>
+
+    <div class="card" style="text-align:center; padding:14px;">
+      <span class="evidence-badge" id="evidence-badge"></span>
+    </div>
+
+    <button class="btn-back" onclick="backToForm()">← 返回修改</button>
+  </div>
+
+</div>
+
+<script>
+/* ============================================================
+   PTIM Engine v0.5 — research-revised, low-input model
+   ============================================================ */
+
+const SYMPTOM_WEIGHTS = {
+  '感冒/发烧':   1.5,
+  '饮酒':        1.2,
+  '呕吐':        1.3,
+  '腹泻':        1.3,
+  '头晕头痛':    1.0,
+  '肌肉关节疼痛': 0.8,
+};
+const ALL_SYMPTOMS = Object.keys(SYMPTOM_WEIGHTS);
+const SEVERITY_MAP = {'轻微': 0.5, '中等': 1.0, '严重': 1.5};
+
+function durationWeight(days) {
+  if (days <= 1) return 0.6;
+  if (days <= 2) return 0.8;
+  if (days <= 3) return 1.0;
+  if (days <= 4) return 1.2;
+  if (days <= 5) return 1.3;
+  return 1.5;
+}
+
+function scoreSymptoms(symptoms) {
+  if (!symptoms || symptoms.length === 0) {
+    return { cap: 5.0, gate_triggered: false, gate_reason: '', symptom_details: [], has_illness: false };
+  }
+  var details = [];
+  var gate_triggered = false;
+  var gate_reason = '';
+  var has_illness = false;
+  var anySevere = false;
+  var anyModerate = false;
+
+  for (var idx = 0; idx < symptoms.length; idx++) {
+    var s = symptoms[idx];
+    var name = s.name;
+    var days = s.days || 1;
+    var severity = s.severity || '轻微';
+    details.push({ name: name, days: days, severity: severity });
+    if (severity === '严重') anySevere = true;
+    if (severity === '中等') anyModerate = true;
+
+    if (name === '感冒/发烧') {
+      has_illness = true;
+      if (severity === '严重' && !gate_triggered) { gate_triggered = true; gate_reason = '严重感冒/发烧，优先恢复'; }
+      else if (severity === '中等' && days >= 3 && !gate_triggered) { gate_triggered = true; gate_reason = '中度感冒/发烧持续3天及以上，优先恢复'; }
+    }
+    if (!gate_triggered && (name === '呕吐' || name === '腹泻') && (severity === '中等' || severity === '严重') && days >= 2) {
+      gate_triggered = true; gate_reason = name + '持续' + days + '天且程度' + severity + '，优先恢复';
+    }
+    if (!gate_triggered && severity === '严重' && days >= 3) {
+      gate_triggered = true; gate_reason = name + '严重且持续' + days + '天，优先恢复';
+    }
+  }
+  var cap = 5;
+  if (gate_triggered) cap = 1.5;
+  else if (anySevere || details.length >= 3) cap = 2.5;
+  else if (anyModerate) cap = 3.5;
+  else cap = 4.0;
+  return { cap: cap, gate_triggered: gate_triggered, gate_reason: gate_reason, symptom_details: details, has_illness: has_illness };
+}
+
+function scoreSleep(hours, quality) {
+  var h;
+  if (hours <= 4) h = 1; else if (hours <= 5) h = 2; else if (hours <= 6) h = 3; else if (hours < 7) h = 4; else h = 5;
+  var qMap = {'没有': 5, '偶尔': 4, '时常': 2.5, '总是': 1};
+  return Math.round((h + (qMap[quality] || 4)) / 2 * 10) / 10;
+}
+
+function scoreNutrition(protein, carb, hydration) {
+  var m = {'偏少': 1, '一般': 3, '充足': 5};
+  var hm = {'不太够': 1, '还行': 3, '充足': 5};
+  return Math.round(((m[protein]||3) + (m[carb]||3) + (hm[hydration]||3)) / 3 * 10) / 10;
+}
+
+function scoreFatigue(raw) { return 6 - raw; }
+
+function scoreStress(s) { return {'低':5,'中等':3.5,'偏高':2,'很高':1}[s] || 3.5; }
+
+function scoreTrainingFreq(days, baseline) {
+  if (!baseline || baseline < 1) return 3;
+  return Math.round(5 * Math.min(days / baseline, 1) * 10) / 10;
+}
+
+function scoreTrainingIntensity(i) { return {'轻松':2,'中等':3.5,'比较拼':4.5,'非常拼':4.5}[i] || 3.5; }
+
+/* --- Today discomfort: transparent safety caps, no additive penalty --- */
+var TODAY_EXPLAIN = {
+  '感冒/发烧':   '全身性炎症反应，身体资源优先用于免疫恢复',
+  '饮酒':        '酒精会在一定程度上抑制蛋白质合成，影响训练后恢复',
+  '呕吐':        '影响营养吸收和水分平衡',
+  '腹泻':        '影响营养吸收和电解质平衡',
+  '头晕头痛':    '可能是睡眠不足、压力或脱水的信号',
+  '肌肉关节疼痛': '可能是训练后DOMS（正常恢复过程）',
+};
+var INSOMNIA_SLEEP_SCORE = { '小于6小时': 2.0, '6-8小时': 3.5, '8小时以上': 4.0 };
+var SYSTEMIC_TODAY = {'感冒/发烧':true, '呕吐':true, '腹泻':true, '头晕头痛':true};
+
+function scoreTodayDiscomfort(td, weeklySymptoms) {
+  var res = { cap: 5, insomniaScore: 5, tags: [], hasDiscomfort: false };
+  if (!td || !td.enabled) return res;
+  res.hasDiscomfort = true;
+  var items = td.symptoms || [];
+  var count = items.length + (td.insomnia ? 1 : 0);
+  var hasSevere = false, hasModerate = false, hasModerateSystemic = false;
+
+  for (var i = 0; i < items.length; i++) {
+    var n = items[i].name;
+    var sev = items[i].severity || '中等';
+    if (sev === '严重') hasSevere = true;
+    if (sev === '中等') {
+      hasModerate = true;
+      if (SYSTEMIC_TODAY[n]) hasModerateSystemic = true;
+    }
+    res.tags.push(['今日不适：' + n + '（' + sev + '）', TODAY_EXPLAIN[n] || '今日身体状态欠佳，建议降低负荷']);
+  }
+
+  if (td.insomnia) {
+    res.insomniaScore = INSOMNIA_SLEEP_SCORE[td.insomnia_sleep] || 3.5;
+    res.tags.push(['今日不适：失眠（睡了' + (td.insomnia_sleep || '6-8小时') + '）', '昨夜睡眠会覆盖周平均睡眠的乐观部分，用于当日准备度判断']);
+  }
+
+  if (count === 0) {
+    res.tags.push(['今日有不适/疲惫感', '身体发出的信号值得重视，今天可适当降低强度']);
+  }
+
+  if (hasSevere) res.cap = 1.5;
+  else if (hasModerateSystemic) res.cap = 1.9;
+  else if (hasModerate || count >= 3 || (td.insomnia && td.insomnia_sleep === '小于6小时')) res.cap = 2.9;
+  else res.cap = 3.9;
+  return res;
+}
+
+/* --- Core formulas: two-axis adaptation + readiness base with caps --- */
+var READINESS_DESC = {
+  '暂停训练，优先恢复': '今天先暂停训练，把恢复与必要的专业评估放在第一位。',
+  '恢复性活动': '更适合散步、轻松活动或舒缓拉伸；若症状加重，请停止。',
+  '降低原计划负荷': '保留训练习惯，但建议减少总量、强度或接近力竭的组数。',
+  '按原计划训练': '当前状态支持执行原计划；热身后仍需根据身体反馈调整。',
+  '状态支持执行计划中的高负荷日': '如果计划原本安排了高负荷内容，今天的状态支持按计划执行；这不代表临时加量。',
+};
+
+function calcTodayLoadFit(sleep, fatigue, stress, carb, hydration, symptomResult, todayResult) {
+  var todaySleep = Math.round(Math.min(sleep, todayResult.insomniaScore) * 10) / 10;
+  var acuteFueling = Math.round((carb + hydration) / 2 * 10) / 10;
+  var base = Math.round((todaySleep + fatigue + stress + acuteFueling) / 4 * 10) / 10;
+  var weeklyCap = symptomResult.gate_triggered ? 1.9 : 5;
+  var score = Math.round(Math.min(base, todayResult.cap, weeklyCap) * 10) / 10;
+  var label;
+  if (symptomResult.gate_triggered || todayResult.cap <= 1.9) label = '暂停训练，优先恢复';
+  else if (score < 2.5) label = '恢复性活动';
+  else if (score < 3.5) label = '降低原计划负荷';
+  else if (score < 4.3) label = '按原计划训练';
+  else label = '状态支持执行计划中的高负荷日';
+  return {
+    score: score, base: base, today_sleep: todaySleep, acute_fueling: acuteFueling,
+    label: label, description: READINESS_DESC[label],
+    gate_triggered: symptomResult.gate_triggered || todayResult.cap <= 1.9,
+    reason: symptomResult.gate_triggered ? '安全闸门：' + symptomResult.gate_reason :
+      (todayResult.cap <= 1.9 ? '今日症状达到保守暂停阈值，请优先恢复' : '')
+  };
+}
+
+function calcSessionInputType(effort, recoveryResult, adherence, symptomResult) {
+  if (symptomResult.gate_triggered || recoveryResult.label === '暂停训练，优先恢复') {
+    return { score: 1, label: '恢复输入', gate_triggered: true, high_cost_warning: false };
+  }
+  var rpeNorm = effort / 2;
+  var iq = rpeNorm * 0.50 + recoveryResult.score * 0.30 + adherence * 0.20;
+  var highCost = false;
+  if (effort >= 8 && recoveryResult.score < 2.5) { iq -= 0.8; highCost = true; }
+  iq = Math.round(Math.max(0, Math.min(5, iq)) * 10) / 10;
+  var label;
+  if (iq < 2) label = '恢复输入';
+  else if (iq < 3.5) label = '维持输入';
+  else label = '刺激输入';
+  return { score: iq, label: label, gate_triggered: false, high_cost_warning: highCost };
+}
+
+function calcPhaseTendency(adherence, intensitySignal, sleep, nutrition, fatigue, stress, symptomResult, input) {
+  var stimulus = Math.round(Math.min(adherence, intensitySignal) * 10) / 10;
+  var recoveryRaw = Math.round((sleep + nutrition + fatigue + stress) / 4 * 10) / 10;
+  var proteinCap = (input.goal === '增肌' && input.protein === '偏少') ? 3.4 : 5;
+  var recovery = Math.round(Math.min(recoveryRaw, symptomResult.cap, proteinCap) * 10) / 10;
+  var score = Math.round(Math.min(stimulus, recovery) * 10) / 10;
+  var highCost = input.training_intensity === '非常拼' && input.fatigue_raw >= 4;
+  var label, desc;
+  if (symptomResult.gate_triggered) { label = '优先恢复'; desc = '近期症状触发安全闸门，暂不把训练表现解释为增肌效果。'; }
+  else if (input.days_trained === 0) { label = '本周无训练刺激'; desc = '没有训练刺激时，模型不会推断本周形成了新的训练适应。'; }
+  else if (stimulus < 2.5) { label = '刺激偏少'; desc = '相对个人计划，训练刺激不足是当前主要限制。'; }
+  else if (highCost) { label = '高成本刺激'; desc = '训练很拼但疲劳偏高，刺激存在，恢复成本也明显。'; }
+  else if (stimulus >= 3.5 && recovery < 3) { label = '刺激存在，恢复受限'; desc = '训练刺激已出现，但恢复条件限制了近期适应。'; }
+  else if (score < 3.5) { label = '维持积累'; desc = '训练与恢复至少有一侧偏弱，更接近维持和积累。'; }
+  else if (score < 4.3) { label = '可能形成有效适应'; desc = '训练刺激与恢复支持基本匹配，存在形成有效适应的条件。'; }
+  else { label = '增肌条件良好'; desc = '训练刺激与恢复支持都较好，但这仍不是肌肉增长的直接测量。'; }
+  return { score: score, label: label, description: desc, stimulus: stimulus, recovery: recovery, recovery_raw: recoveryRaw, protein_cap: proteinCap, high_cost: highCost };
+}
+
+/* --- Why Tags --- */
+function generateWhyTags(scores, raw, symptomResult, phaseResult) {
+  var tags = [];
+  var details = symptomResult.symptom_details || [];
+  for (var i = 0; i < details.length; i++) {
+    var d = details[i];
+    var n = d.name, dy = d.days, sv = d.severity;
+    var tag = n + '(' + sv + '·' + dy + '天)';
+    if (n === '感冒/发烧') tags.push([tag, '全身性炎症反应，身体资源优先用于免疫恢复']);
+    else if (n === '饮酒') tags.push([tag, '酒精会在一定程度上抑制蛋白质合成，影响训练后恢复']);
+    else if (n === '呕吐') tags.push([tag, '影响营养吸收和水分平衡']);
+    else if (n === '腹泻') tags.push([tag, '影响营养吸收和电解质平衡']);
+    else if (n === '头晕头痛') tags.push([tag, '可能是睡眠不足、压力或脱水的信号']);
+    else if (n === '肌肉关节疼痛') {
+      tags.push([tag, dy <= 3 ? '可能是训练后DOMS（正常恢复过程）' : '持续超过3天，建议关注是否需要调整训练']);
+    }
+  }
+  if (phaseResult.stimulus < phaseResult.recovery) tags.push(['训练刺激是当前短板', '最终适应分由较弱的一侧决定；当前训练刺激低于恢复支持']);
+  else if (phaseResult.recovery < phaseResult.stimulus) tags.push(['恢复支持是当前短板', '最终适应分由较弱的一侧决定；当前恢复支持低于训练刺激']);
+  if (scores.sleep <= 2.5) tags.push(['睡眠支持偏低', '近期睡眠时长或质量可能限制恢复与训练表现']);
+  if (raw.sleep_quality === '时常' || raw.sleep_quality === '总是') tags.push(['睡眠质量偏差', '频繁睡不好是恢复支持不足的重要主观信号']);
+  if (raw.protein === '偏少') tags.push(['蛋白质支持偏少', '增肌目标下，模型会对周恢复支持设置保守上限']);
+  if (raw.carb === '偏少') tags.push(['碳水偏少', '糖原不足时肌肉看着更扁，这是表象变化']);
+  if (raw.hydration === '不太够') tags.push(['水分摄入不足', '脱水影响糖原储存和肌肉充盈感']);
+  if (raw.fatigue_raw >= 4) tags.push(['疲劳感偏高', '持续高疲劳可能是负荷-恢复不匹配的信号']);
+  if (raw.stress === '偏高' || raw.stress === '很高') tags.push(['压力偏大', '主观压力偏高会降低本模型的恢复支持与当日准备度']);
+  if (scores.plan_adherence <= 2) tags.push(['本周计划完成度偏低', '相对个人计划，训练刺激可能不足']);
+  if ((scores.intensity_signal || 0) >= 4.5 && raw.fatigue_raw >= 4) tags.push(['近期高成本刺激', '训练很拼且疲劳偏高，负荷与恢复条件可能不匹配']);
+  if (raw.menstrual_phase === '经期中') tags.push(['经期个体差异', '不做固定扣分；请以个人症状和训练感受为主']);
+  if (raw.visual === '更扁了' && raw.carb === '偏少') tags.push(['视觉变化可能来自糖原', '碳水低+外观扁=典型糖原水分效应']);
+  else if (raw.visual === '更扁了') tags.push(['视觉变化暂不足以下结论', '短期外观变化受多种因素影响']);
+  return tags.slice(0, 5);
+}
+
+/* --- Evidence --- */
+function determineEvidence(mode, optFilled, logDays) {
+  return { level: 'research', desc: '训练适应：有限参考性 · 今日准备度：中等参考性' };
+}
+
+/* --- Main engine --- */
+function runPTIM(input) {
+  var sleep = scoreSleep(input.sleep_hours, input.sleep_quality);
+  var nutrition = scoreNutrition(input.protein, input.carb, input.hydration);
+  var fatigue = scoreFatigue(input.fatigue_raw);
+  var stress = scoreStress(input.stress);
+  var adherence = scoreTrainingFreq(input.days_trained, input.train_freq_baseline);
+  var intensitySignal = scoreTrainingIntensity(input.training_intensity);
+  var symptomResult = scoreSymptoms(input.symptoms);
+  var todayResult = scoreTodayDiscomfort(input.today_discomfort, input.symptoms);
+  var menstrual = input.menstrual_phase || '非经期';
+  if (input.sex === '男') menstrual = '非经期';
+
+  var nutritionMap = {'偏少':1, '一般':3, '充足':5};
+  var hydrationMap = {'不太够':1, '还行':3, '充足':5};
+  var carb = nutritionMap[input.carb] || 3;
+  var hydration = hydrationMap[input.hydration] || 3;
+  var phase = calcPhaseTendency(adherence, intensitySignal, sleep, nutrition, fatigue, stress, symptomResult, input);
+  var loadFit = calcTodayLoadFit(sleep, fatigue, stress, carb, hydration, symptomResult, todayResult);
+  var scores = {
+    sleep: sleep, nutrition: nutrition, fatigue: fatigue, stress: stress,
+    plan_adherence: adherence, intensity_signal: intensitySignal,
+    stimulus: phase.stimulus, weekly_recovery: phase.recovery,
+    acute_fueling: loadFit.acute_fueling
+  };
+
+  var sessionType = null;
+  if (input.session_effort != null) {
+    sessionType = calcSessionInputType(input.session_effort, loadFit, adherence, symptomResult);
+  }
+
+  var rawForTags = {
+    sleep_quality: input.sleep_quality, protein: input.protein, carb: input.carb,
+    hydration: input.hydration, fatigue_raw: input.fatigue_raw, stress: input.stress,
+    menstrual_phase: menstrual, visual: input.visual || '没注意',
+  };
+  // 今日不适标签排在最前（对当日判断影响最直接），整体仍限 5 个
+  var whyTags = todayResult.tags.concat(generateWhyTags(scores, rawForTags, symptomResult, phase)).slice(0, 5);
+  var evidence = determineEvidence('咨询', input.visual !== '没注意' ? 1 : 0, 0);
+  if (symptomResult.gate_triggered || todayResult.cap <= 1.9) evidence.desc = '训练适应：有限参考性 · 今日准备度：保守判断';
+
+  return { scores: scores, symptom_detail: symptomResult, today_detail: todayResult, today_readiness: loadFit, session_input_type: sessionType, training_adaptation: phase, why_tags: whyTags, evidence_level: evidence };
+}
+
+
+/* ============================================================
+   UI Logic
+   ============================================================ */
+function $(id) { return document.getElementById(id); }
+
+/* --- Symptom UI --- */
+var activeSymptoms = {};
+
+function renderSymptomGrid() {
+  var grid = $('symptom-grid');
+  var container = $('symptom-details-container');
+  grid.innerHTML = '';
+  container.innerHTML = '';
+
+  for (var i = 0; i < ALL_SYMPTOMS.length; i++) {
+    var name = ALL_SYMPTOMS[i];
+    (function(name) {
+      var chip = document.createElement('div');
+      chip.className = 'symptom-chip';
+      chip.setAttribute('data-name', name);
+      chip.innerHTML = '<span class="check"></span><span>' + name + '</span>';
+      chip.addEventListener('click', function() { toggleSymptom(name, chip); });
+      grid.appendChild(chip);
+
+      var detail = document.createElement('div');
+      detail.className = 'symptom-detail';
+      detail.id = 'sd-' + name;
+      detail.innerHTML =
+        '<div class="symptom-label">' + name + '</div>' +
+        '<div class="row-2">' +
+          '<div class="field">' +
+            '<label>天数</label>' +
+            '<select id="sd-days-' + name + '">' +
+              '<option value="1">1天</option><option value="2">2天</option>' +
+              '<option value="3">3天</option><option value="4">4天</option>' +
+              '<option value="5">5天</option><option value="6">6天</option>' +
+              '<option value="7">7天</option>' +
+            '</select>' +
+          '</div>' +
+          '<div class="field">' +
+            '<label>程度</label>' +
+            '<select id="sd-sev-' + name + '">' +
+              '<option value="轻微">轻微</option>' +
+              '<option value="中等">中等</option>' +
+              '<option value="严重">严重</option>' +
+            '</select>' +
+          '</div>' +
+        '</div>';
+      container.appendChild(detail);
+    })(name);
+  }
+}
+
+function toggleSymptom(name, chip) {
+  if (activeSymptoms[name]) {
+    delete activeSymptoms[name];
+    chip.classList.remove('active');
+    chip.querySelector('.check').textContent = '';
+    $('sd-' + name).classList.remove('show');
+  } else {
+    activeSymptoms[name] = true;
+    chip.classList.add('active');
+    chip.querySelector('.check').textContent = '✓';
+    $('sd-' + name).classList.add('show');
+  }
+}
+
+function getSymptomInput() {
+  var symptoms = [];
+  var names = Object.keys(activeSymptoms);
+  for (var i = 0; i < names.length; i++) {
+    var name = names[i];
+    symptoms.push({
+      name: name,
+      days: parseInt($('sd-days-' + name).value),
+      severity: $('sd-sev-' + name).value,
+    });
+  }
+  return symptoms;
+}
+
+/* --- Today discomfort UI --- */
+var TODAY_SYMPTOMS = ALL_SYMPTOMS.concat(['失眠']);
+var activeTodaySymptoms = {};
+
+function renderTodaySymptomGrid() {
+  var grid = $('today-symptom-grid');
+  var container = $('today-symptom-details');
+  grid.innerHTML = '';
+  container.innerHTML = '';
+  for (var i = 0; i < TODAY_SYMPTOMS.length; i++) {
+    (function(name) {
+      var chip = document.createElement('div');
+      chip.className = 'symptom-chip';
+      chip.innerHTML = '<span class="check"></span><span>' + name + '</span>';
+      chip.addEventListener('click', function() { toggleTodaySymptom(name, chip); });
+      grid.appendChild(chip);
+
+      var detail = document.createElement('div');
+      detail.className = 'symptom-detail';
+      detail.id = 'td-sd-' + name;
+      if (name === '失眠') {
+        detail.innerHTML =
+          '<div class="symptom-label">失眠</div>' +
+          '<div class="field" style="margin-bottom:0;">' +
+            '<label>昨晚睡眠时长</label>' +
+            '<select id="td_insomnia_sleep">' +
+              '<option value="小于6小时">小于6小时</option>' +
+              '<option value="6-8小时" selected>6-8小时</option>' +
+              '<option value="8小时以上">8小时以上</option>' +
+            '</select>' +
+          '</div>';
+      } else {
+        detail.innerHTML =
+          '<div class="symptom-label">' + name + '</div>' +
+          '<div class="field" style="margin-bottom:0;">' +
+            '<label>程度</label>' +
+            '<select id="td-sev-' + name + '">' +
+              '<option value="轻微">轻微</option>' +
+              '<option value="中等" selected>中等</option>' +
+              '<option value="严重">严重</option>' +
+            '</select>' +
+          '</div>';
+      }
+      container.appendChild(detail);
+    })(TODAY_SYMPTOMS[i]);
+  }
+}
+
+function toggleTodaySymptom(name, chip) {
+  if (activeTodaySymptoms[name]) {
+    delete activeTodaySymptoms[name];
+    chip.classList.remove('active');
+    chip.querySelector('.check').textContent = '';
+    $('td-sd-' + name).classList.remove('show');
+  } else {
+    activeTodaySymptoms[name] = true;
+    chip.classList.add('active');
+    chip.querySelector('.check').textContent = '✓';
+    $('td-sd-' + name).classList.add('show');
+  }
+}
+
+$('today_discomfort').addEventListener('change', function(e) {
+  $('today-discomfort-detail').style.display = e.target.checked ? 'block' : 'none';
+});
+
+function getTodayDiscomfortInput() {
+  var items = [];
+  var names = Object.keys(activeTodaySymptoms);
+  for (var i = 0; i < names.length; i++) {
+    if (names[i] === '失眠') continue;
+    items.push({ name: names[i], severity: $('td-sev-' + names[i]).value });
+  }
+  return {
+    enabled: $('today_discomfort').checked,
+    symptoms: items,
+    insomnia: !!activeTodaySymptoms['失眠'],
+    insomnia_sleep: activeTodaySymptoms['失眠'] ? $('td_insomnia_sleep').value : null,
+  };
+}
+
+/* --- Sex toggle for menstrual card --- */
+$('sex').addEventListener('change', function() {
+  $('menstrual-card').style.display = $('sex').value === '女' ? 'block' : 'none';
+});
+
+/* --- Range display --- */
+$('sleep_hours').addEventListener('input', function(e) { $('sleep_hours_val').textContent = e.target.value + 'h'; });
+$('fatigue_raw').addEventListener('input', function(e) { $('fatigue_raw_val').textContent = e.target.value; });
+$('session_effort').addEventListener('input', function(e) { $('session_effort_val').textContent = e.target.value; });
+
+/* --- Session toggle --- */
+$('has_session').addEventListener('change', function(e) {
+  $('session-field').style.display = e.target.checked ? 'block' : 'none';
+});
+
+/* --- Color helpers --- */
+function scoreColor(score, invert) {
+  var s = invert ? (5 - score) : score;
+  if (s >= 3.5) return 'green';
+  if (s >= 2) return 'orange';
+  return 'red';
+}
+
+function renderBar(barId, score, maxVal, invert) {
+  var bar = $(barId);
+  var pct = Math.min(100, (score / maxVal) * 100);
+  var color = scoreColor(score, invert);
+  bar.style.width = pct + '%';
+  bar.className = 'score-bar-fill bg-' + color;
+}
+
+/* --- Result visualizations ---
+   动画仅在元素首次进入视口时触发一次（IntersectionObserver，触发后停止观察） */
+var vizObserver = ('IntersectionObserver' in window)
+  ? new IntersectionObserver(function(entries) {
+      entries.forEach(function(en) {
+        if (en.isIntersecting) {
+          en.target.classList.add('animate');
+          vizObserver.unobserve(en.target);
+        }
+      });
+    }, { threshold: 0.35 })
+  : null;
+
+function armViz(el) {
+  el.classList.remove('animate');
+  if (vizObserver) {
+    vizObserver.unobserve(el);
+    requestAnimationFrame(function() { vizObserver.observe(el); });
+  } else {
+    setTimeout(function() { el.classList.add('animate'); }, 60);
+  }
+}
+
+/* 电池：电量升至与评分对应的水平 */
+function buildBattery(id, score) {
+  var wrap = $(id);
+  var color = scoreColor(score, false);
+  var pct = score <= 0 ? 0 : Math.max(6, (score / 5) * 100);
+  wrap.innerHTML =
+    '<div class="battery">' +
+      '<div class="battery-body"><div class="battery-fill bg-' + color + '" style="--target:' + pct.toFixed(0) + '%"></div></div>' +
+      '<div class="battery-cap"></div>' +
+    '</div>';
+  armViz(wrap);
+}
+
+/* 从左到右递增的柱状条，按评分依次亮起；color 由调用方决定 */
+function buildBars(id, score, color) {
+  var wrap = $(id);
+  var lit = Math.max(0, Math.min(5, Math.round(score)));
+  if (score > 0 && lit === 0) lit = 1;
+  var html = '<div class="viz-bars">';
+  for (var i = 1; i <= 5; i++) {
+    var h = 14 + i * 9.6; // 高度从左到右递增
+    var cls = i <= lit ? ' lit-' + color : '';
+    html += '<div class="vbar' + cls + '" style="height:' + h.toFixed(0) + 'px; --d:' + ((i - 1) * 0.15 + 0.1).toFixed(2) + 's"></div>';
+  }
+  html += '</div>';
+  wrap.innerHTML = html;
+  armViz(wrap);
+}
+
+/* --- Run engine from form --- */
+function runEngine() {
+  var input = {
+    sex: $('sex').value,
+    train_freq_baseline: parseInt($('train_freq_baseline').value),
+    goal: $('goal').value,
+    days_trained: parseInt($('days_trained').value),
+    training_intensity: $('training_intensity').value,
+    sleep_hours: parseFloat($('sleep_hours').value),
+    sleep_quality: $('sleep_quality').value,
+    protein: $('protein').value,
+    carb: $('carb').value,
+    hydration: $('hydration').value,
+    fatigue_raw: parseInt($('fatigue_raw').value),
+    stress: $('stress').value,
+    symptoms: getSymptomInput(),
+    today_discomfort: getTodayDiscomfortInput(),
+    menstrual_phase: $('sex').value === '女' ? $('menstrual_phase').value : '非经期',
+    visual: $('visual').value,
+    session_effort: $('has_session').checked ? parseInt($('session_effort').value) : null,
+  };
+
+  var result = runPTIM(input);
+  renderResults(result);
+}
+
+var DISCLAIMER = '本评估仅供参考，不能替代专业诊断或医疗建议。请用户结合自身感受，谨慎选择是否运动及运动强度。运动过程中请注意安全，因个人运动决策造成的风险需由用户本人承担。';
+
+function renderResults(r) {
+  $('form-section').style.display = 'none';
+  $('results').style.display = 'block';
+
+  /* Header subtitle → disclaimer on results page */
+  $('header-sub').textContent = DISCLAIMER;
+  $('header-sub').className = 'disclaimer';
+
+  /* Gate banner */
+  var gate = $('gate-banner');
+  if (r.today_readiness.gate_triggered) {
+    gate.textContent = '⛔ ' + r.today_readiness.reason;
+    gate.classList.add('show');
+  } else {
+    gate.classList.remove('show');
+  }
+
+  /* Load fit — 电池可视化 */
+  $('load-label').textContent = r.today_readiness.label;
+  $('load-label').className = 'big-label c-' + scoreColor(r.today_readiness.score, false);
+  $('load-desc').textContent = r.today_readiness.description || '';
+  $('load-score').textContent = r.today_readiness.score + ' / 5（基础分 ' + r.today_readiness.base + '）';
+  buildBattery('load-viz', r.today_readiness.score);
+
+  /* Phase — 递增柱状条 */
+  $('phase-label').textContent = r.training_adaptation.label;
+  $('phase-label').className = 'big-label c-' + scoreColor(r.training_adaptation.score, false);
+  $('phase-desc').textContent = r.training_adaptation.description;
+  $('phase-score').textContent = r.training_adaptation.score + ' / 5（两轴较低值）';
+  buildBars('phase-viz', r.training_adaptation.score, scoreColor(r.training_adaptation.score, false));
+
+  /* Two transparent axes */
+  $('stimulus-score').textContent = r.training_adaptation.stimulus + ' / 5';
+  $('stimulus-score').className = 'axis-value c-' + scoreColor(r.training_adaptation.stimulus, false);
+  $('recovery-score').textContent = r.training_adaptation.recovery + ' / 5';
+  $('recovery-score').className = 'axis-value c-' + scoreColor(r.training_adaptation.recovery, false);
+
+  /* Session */
+  if (r.session_input_type) {
+    $('result-session').style.display = 'block';
+    var warn = r.session_input_type.high_cost_warning ? ' ⚠' : '';
+    $('session-label').textContent = r.session_input_type.label + warn;
+    $('session-label').className = 'big-label c-' + scoreColor(r.session_input_type.score, false);
+    $('session-score').textContent = r.session_input_type.score + ' / 5';
+    renderBar('session-bar', r.session_input_type.score, 5, false);
+  } else {
+    $('result-session').style.display = 'none';
+  }
+
+  /* Why tags */
+  var chips = $('tag-chips');
+  var explains = $('tag-explains');
+  chips.innerHTML = '';
+  explains.innerHTML = '';
+  if (r.why_tags.length === 0) {
+    $('result-why').style.display = 'none';
+  } else {
+    $('result-why').style.display = 'block';
+    for (var i = 0; i < r.why_tags.length; i++) {
+      var tag = r.why_tags[i][0];
+      var reason = r.why_tags[i][1];
+      var c = document.createElement('span');
+      c.className = 'tag-chip';
+      c.textContent = tag;
+      chips.appendChild(c);
+
+      var e = document.createElement('div');
+      e.className = 'tag-explain';
+      e.innerHTML = '<strong>' + tag + '</strong>: ' + reason;
+      explains.appendChild(e);
+    }
+  }
+
+  /* Score rows */
+  var scoreLabels = {
+    sleep: '睡眠支持', nutrition: '周营养支持', fatigue: '疲劳恢复',
+    stress: '压力恢复', plan_adherence: '计划完成度', intensity_signal: '强度信号',
+    stimulus: '训练刺激', weekly_recovery: '周恢复支持', acute_fueling: '当日供能',
+  };
+  var rows = $('score-rows');
+  rows.innerHTML = '';
+  var RING_C = 56.55; // 2πr, r=9
+  var keys = ['sleep','nutrition','fatigue','stress','plan_adherence','intensity_signal','stimulus','weekly_recovery','acute_fueling'];
+  for (var k = 0; k < keys.length; k++) {
+    var key = keys[k];
+    var v = r.scores[key];
+    var row = document.createElement('div');
+    row.className = 'result-row';
+    var cl = scoreColor(v, false);
+    var offset = (RING_C * (1 - Math.max(0, Math.min(5, v)) / 5)).toFixed(2);
+    row.innerHTML = '<span class="r-label">' + (scoreLabels[key] || key) + '</span>' +
+      '<span class="r-value-wrap">' +
+        '<span class="r-value c-' + cl + '">' + v + ' / 5</span>' +
+        '<svg class="score-ring" viewBox="0 0 24 24" width="22" height="22">' +
+          '<circle class="ring-bg" cx="12" cy="12" r="9"></circle>' +
+          '<circle class="ring-fg ring-' + cl + '" cx="12" cy="12" r="9" style="--rt:' + offset + '; --d:' + (k * 0.1 + 0.1).toFixed(1) + 's"></circle>' +
+        '</svg>' +
+      '</span>';
+    rows.appendChild(row);
+  }
+  armViz(rows); // 圆环动画同样仅在首次进入视口时触发一次
+
+  /* Evidence */
+  var ev = r.evidence_level;
+  var badge = $('evidence-badge');
+  badge.textContent = ev.level + ' — ' + ev.desc;
+  badge.className = 'evidence-badge evidence-' + ev.level;
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function backToForm() {
+  $('form-section').style.display = 'block';
+  $('results').style.display = 'none';
+  $('header-sub').textContent = '生理-运动评估助手';
+  $('header-sub').className = '';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* --- Init --- */
+renderSymptomGrid();
+renderTodaySymptomGrid();
+</script>
+</body>
+</html>
